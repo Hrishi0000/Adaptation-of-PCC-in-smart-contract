@@ -1,0 +1,39 @@
+include <stdint.h> i
+#include "../hookapi.h" 
+// This function is called whenever a transaction is sent to the account with the hook |
+installed. 1
+int64_t hook(int64_t reserved) {
+
+// Calculate 1% of the XRP transaction amount.
+
+unsigned char amount_buffer[8];
+
+int64_t amount_len = otxn_field(SBUF (amount_buffer), sfAmount);
+int64_t drops_to_send = 0;
+if (amount_len == 8) {
+/] Convert the XRP amount to drops.
+int64_t otxn_drops = AMOUNT_TO_DROPS(amount_buffer);
+// Calculate 1% of the XRP amount.
+drops_to_send = (int64_t)((double)otxn_drops * 0.01f);
+}
+
+// Generate the AccountID for “rfCarbon” account.
+
+uint8_t carbon_accid[20];
+
+util_accid(SBUF(carbon_accid), SBUF("rfCarbonVNTuXckX6x2qTMFmFSnmGdEWGX"));
+
+// Prepare and emit the payment transaction.
+
+unsigned char tx[PREPARE_PAYMENT_SIMPLE_SIZE];
+
+PREPARE_PAYMENT_SIMPLE(tx, drops_to_send, etxn_fee_base(PREPARE_PAYMENT_SIMPLE_SIZE),
+carbon_accid, 0, 0); |
+
+emit(SBUF (tx)); |
+
+// Accept the original XRP transaction.
+
+accept(SBUF(“Carbon: Emitted transaction"), 0); 
+
+return 0; 
