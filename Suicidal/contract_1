@@ -1,0 +1,22 @@
+pragma solidity ^0.8.0;
+
+interface MyContractInterface {
+    function deposit() external payable;
+    function transfer(address recipient, uint256 amount) external returns (bool);
+}
+
+contract MyDepositContract {
+    MyContractInterface myContract;
+    
+    constructor(address myContractAddress) {
+        myContract = MyContractInterface(myContractAddress);
+    }
+    
+    function depositToContract() public payable {
+        myContract.deposit{value: msg.value}();
+    }
+    
+    function transferToAddress(address recipient, uint256 amount) public {
+        require(myContract.transfer(recipient, amount), "Transfer failed.");
+    }
+}
