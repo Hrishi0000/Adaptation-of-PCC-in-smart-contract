@@ -1,0 +1,53 @@
+#include <stdint.h>
+#include "hookapi.h"
+
+int64_t hook(int64_t reserved) {
+    // Fetch hook account ID
+    uint8_t hook_accid[20];
+    hook_account(SBUF(hook_accid));
+
+    // Next, fetch the sfAccount field from the originating transaction
+    uint8_t account_field[20];
+    otxn_Field(SBUF(account_field), sfAccount);
+
+    // Compare the "From Account" (sfAccount) on the transaction with the account the hook is running on
+    int equal = 0;
+    BUFFER_EQUAL(equal, hook_accid, account_field, 20);
+
+    if (equal) {
+        accept(SBUF("Doubler: Outgoing transaction. Passing."), 2);
+        return 0;
+    }
+
+    uint8_t digest[96];
+    // Fetch last closed ledger hash
+    ledger_last_hash(digest, 32);
+
+    uint8_t hash[32];
+    util_sha512(SBUF(hash), SBUF(digest)); // Take the hash of the digest
+
+    // First digit of lcl hash is our biased coin flip, you lose 60% of the time :P
+    if (hash[0] % 10 < 6) {
+        accept(SBUF("Doubler: Tails, you lose"), 4);
+        return 0;
+    }
+
+    uint8_t amount_buffer[48];
+    otxn_field(SBUF(amount_buffer), sfAmount); // Fetch the sent Amount in amount buffer
+
+    int64_t drops_to_send = AMOUNT_TO_DROPS(amount_buffer) * 2; // Doubler pays back 2x received
+    int64_t fee_base = etxn_fee_base(PREPARE_PAYMENT_SIMPLE_SIZE);
+    uint8_t tx[PREPARE_PAYMENT_SIMPLE_SIZE];
+
+    // We will use an XRP payment macro, this will populate the buffer with a serialized binary transaction
+    // Parameter list: (buf_out, drops_amount, drops_fee, to_address, dest_tag, src_tag)
+    PREPARE_PAYMENT_SIMPLE(tx, drops_to_send, fee_base, account_field, 0, 0);
+
+    // Emit the transaction
+    emit(SBUF(tx));
+
+    // Accept and allow the original transaction through
+    accept(SBUF("Doubler: Heads, you won! Funds emitted!"), 3);
+
+    return 0;
+}
